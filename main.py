@@ -281,15 +281,14 @@ class Window(Gtk.Window):
         if date_1_selected and date_2_selected:
             self.search_date_label.set_text("Selected: " + str(day_1) + "/" + str(month_1) + "/" + str(year_1) + " to " + \
                                             str(day_2) + "/" + str(month_2) + "/" + str(year_2))
-            self.populate_view_posts_text_view()
         elif date_1_selected or date_2_selected:
             if date_1_selected:
                 self.search_date_label.set_text("Selected: " + str(day_1) + "/" + str(month_1) + "/" + str(year_1))
             else: #date_2_selected
-                self.search_date_label.set_text("Selected: " + str(day_2) + "/" + str(month_2) + "/" + str(year_2))
-            self.populate_view_posts_text_view()
+                self.search_date_label.set_text("Selected: " + str(day_2) + "/" + str(month_2) + "/" + str(year_2))            
         else: #neither calendar has a selected date
             self.search_date_label.set_text("No date or date range selected.")
+        self.populate_view_posts_text_view()
 
     def handle_scroll_event(self, scrolled_window, pos):
         posts = self.get_posts_data()
