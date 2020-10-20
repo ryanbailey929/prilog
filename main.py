@@ -79,7 +79,6 @@ class Window(Gtk.Window):
         self.dates_selected = [False, False]    #date_1_selected, date_2_selected (modified by date_range_selected)
         self.search_tag_text = ""               #the contents of the search tag entry (updated every keyevent)
         self.search_content_text = ""           #the contents of the search content entry (updated every keyevent)
-        num_of_posts = len(self.get_posts_data())
         self.range_to_load = [0, 20]            #the range of relevant posts (updated by handle_scroll_event)
         self.first_time = True
         self.vptv_refreshed = False
