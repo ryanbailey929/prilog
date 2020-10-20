@@ -125,8 +125,8 @@ class Window(Gtk.Window):
             return posts[::-1]
 
     def get_meta_line(self, data, i):
-        meta_line = "Date: " + str(data[i]["day"]) + "/" + str(data[i]["month"]) + "/" + str(data[i]["year"]) + \
-                    "  " + str(data[i]["hour"]) + ":" + str(data[i]["minute"])
+        meta_line = "Date: " + self.fstr(data[i]["day"]) + "/" + self.fstr(data[i]["month"]) + "/" + str(data[i]["year"]) + \
+                    "  " + self.fstr(data[i]["hour"]) + ":" + self.fstr(data[i]["minute"])
         meta_line += " "*(40-len(meta_line)) + "Tag: " + data[i]["tag"]
         return meta_line
     
@@ -265,6 +265,10 @@ class Window(Gtk.Window):
     def select_date_range(self, button):
         self.select_date_range_window.show_all()
     
+    #take in an int and return it as a string to padded with zeros - i.e. 2 --> "02" 
+    def fstr(self, i):
+        return str(i) if i >= 10 else "0" + str(i)
+
     #called by SelectDateRangeWindow when it's confirm button is hit
     def date_range_selected(self, date_1_selected, date_2_selected, day_1, day_2, month_1, month_2, year_1, year_2):
         self.dates_selected = [date_1_selected, date_2_selected]
@@ -278,13 +282,13 @@ class Window(Gtk.Window):
                 day_2, month_2, year_2 = [None]*3
         self.date_range = [[day_1, month_1, year_1], [day_2, month_2, year_2]]
         if date_1_selected and date_2_selected:
-            self.search_date_label.set_text("Selected: " + str(day_1) + "/" + str(month_1) + "/" + str(year_1) + " to " + \
-                                            str(day_2) + "/" + str(month_2) + "/" + str(year_2))
+            self.search_date_label.set_text("Selected: " + self.fstr(day_1) + "/" + self.fstr(month_1) + "/" + str(year_1) + " to " + \
+                                            self.fstr(day_2) + "/" + self.fstr(month_2) + "/" + str(year_2))
         elif date_1_selected or date_2_selected:
             if date_1_selected:
-                self.search_date_label.set_text("Selected: " + str(day_1) + "/" + str(month_1) + "/" + str(year_1))
+                self.search_date_label.set_text("Selected: " + self.fstr(day_1) + "/" + self.fstr(month_1) + "/" + str(year_1))
             else: #date_2_selected
-                self.search_date_label.set_text("Selected: " + str(day_2) + "/" + str(month_2) + "/" + str(year_2))            
+                self.search_date_label.set_text("Selected: " + self.fstr(day_2) + "/" + self.fstr(month_2) + "/" + str(year_2))            
         else: #neither calendar has a selected date
             self.search_date_label.set_text("No date or date range selected.")
         self.populate_view_posts_text_view()
