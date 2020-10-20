@@ -1,6 +1,6 @@
 #author Ryan Bailey
 
-from os.path import isfile
+from os.path import isfile, dirname, realpath
 import gi, json, datetime
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk, GObject, Pango
@@ -92,18 +92,18 @@ class Window(Gtk.Window):
     
     def check_for_postsfile(self):
         #if no posts file found on start up, send a dialog box asking the user if you want to create one if no is selected, exit.
-        if not isfile(".postsfile"):
+        if not isfile(dirname(realpath(__file__)) + "/.postsfile"):
             dialog = NoPostsFileDialog(self)
             response = dialog.run()
             dialog.destroy()
             if response == Gtk.ResponseType.YES:
-                with open(".postsfile", "w+") as postfile:
-                    postfile.write(json.dumps([]))
+                with open(dirname(realpath(__file__)) + "/.postsfile", "w+") as postsfile:
+                    postsfile.write(json.dumps([]))
             else:
                 Gtk.main_quit()
 
     def get_posts_data(self):
-        with open(".postsfile", "rt") as postsfile:
+        with open(dirname(realpath(__file__)) + "/.postsfile", "rt") as postsfile:
             posts = json.loads(postsfile.read())
             if self.dates_selected[0] and self.dates_selected[1]:
                 posts = [x for x in posts if (
@@ -199,7 +199,7 @@ class Window(Gtk.Window):
                     "year":now.date().year, "month":now.date().month, "day":now.date().day, "tag":self.tag_entry.get_text()}
         posts = [new_post] + posts
         posts = posts[::-1]
-        with open(".postsfile", "wt") as postsfile:
+        with open(dirname(realpath(__file__)) + "/.postsfile", "wt") as postsfile:
             postsfile.seek(0)
             postsfile.truncate()
             postsfile.write(json.dumps(posts, sort_keys=True, indent=2))
