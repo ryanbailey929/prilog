@@ -1,7 +1,7 @@
 #author Ryan Bailey
 
 from os.path import isfile, dirname, realpath
-import gi, json, datetime
+import gi, json, datetime, math
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk, GObject, Pango
 
@@ -80,8 +80,6 @@ class Window(Gtk.Window):
         self.search_tag_text = ""               #the contents of the search tag entry (updated every keyevent)
         self.search_content_text = ""           #the contents of the search content entry (updated every keyevent)
         self.range_to_load = [0, 20]            #the range of relevant posts (updated by handle_scroll_event)
-        self.first_time = True
-        self.vptv_refreshed = False
         
         self.master = Gtk.Box()
         self.master.add(self.new_post_layout)
@@ -99,6 +97,7 @@ class Window(Gtk.Window):
             if response == Gtk.ResponseType.YES:
                 with open(dirname(realpath(__file__)) + "/.postsfile", "w+") as postsfile:
                     postsfile.write(json.dumps([]))
+                GObject.idle_add(self.populate_view_posts_text_view)
             else:
                 Gtk.main_quit()
 
@@ -130,60 +129,81 @@ class Window(Gtk.Window):
         meta_line += " "*(40-len(meta_line)) + "Tag: " + data[i]["tag"]
         return meta_line
     
-    def add_posts_to_buffer(self, buff, data, range_to_load):
+    def add_posts_to_buffer(self, buff, data, range_to_load, top=False):
         mark_pairs = []
-        for i in range(range_to_load[1] - 1 if len(data) > range_to_load[1] else len(data) - 1, range_to_load[0] - 1, -1):
-            meta_line = self.get_meta_line(data, i)
-            post_line = data[i]["text"]
-            start_mark = buff.create_mark(None, buff.get_end_iter(), left_gravity=True)
-            buff.insert(buff.get_end_iter(), meta_line)
-            mark_pairs += [[start_mark, buff.create_mark(None, buff.get_end_iter(), left_gravity=True)]]
-            buff.insert(buff.get_end_iter(), "\n" + post_line + "\n\n\n")
+        if top:
+            for i in range(range_to_load[0], range_to_load[1]):
+                meta_line = self.get_meta_line(data, i)
+                post_line = data[i]["text"]
+                buff.insert(buff.get_start_iter(), "\n" + post_line + "\n\n\n")
+                end_mark = buff.create_mark(None, buff.get_start_iter(), left_gravity=False)
+                buff.insert(buff.get_start_iter(), meta_line)
+                mark_pairs += [[buff.create_mark(None, buff.get_start_iter(), left_gravity=False), end_mark]]
+        else:
+            for i in range(range_to_load[1] - 1 if len(data) > range_to_load[1] else len(data) - 1, range_to_load[0] - 1, -1):
+                meta_line = self.get_meta_line(data, i)
+                post_line = data[i]["text"]
+                start_mark = buff.create_mark(None, buff.get_end_iter(), left_gravity=True)
+                buff.insert(buff.get_end_iter(), meta_line)
+                mark_pairs += [[start_mark, buff.create_mark(None, buff.get_end_iter(), left_gravity=True)]]
+                buff.insert(buff.get_end_iter(), "\n" + post_line + "\n\n\n")
         return mark_pairs
+    
+    def remove_posts_from_buffer(self, buff, data, old_range_to_load, top): 
+        #figure out which posts are to be removed, how many buffer lines are in these posts (plus how many are added when inserted)
+        #and then remove these lines from the buffer
+        num_of_buffer_lines_to_remove = 0
+        if top:
+            range_to_remove = [self.range_to_load[0], old_range_to_load[0]]
+            for i in range(range_to_remove[1], range_to_remove[0]):
+                num_of_buffer_lines_to_remove += (4 + data[i]["text"].count("\n"))
+            end_iter = buff.get_end_iter()
+            #if char_offset too large, iter at end of line given
+            start_iter = buff.get_iter_at_line_offset(buff.get_line_count() - num_of_buffer_lines_to_remove - 1, char_offset=0)
+        else: #bottom
+            range_to_remove = [old_range_to_load[1] - 1, self.range_to_load[1] - 1]
+            for i in range(range_to_remove[1], range_to_remove[0]):
+                num_of_buffer_lines_to_remove += (4 + data[i]["text"].count("\n"))
+            start_iter = buff.get_start_iter()
+            #calculate char_offset
+            lines = buff.get_text(buff.get_start_iter(), buff.get_end_iter(), include_hidden_chars=False).split("\n")
+            char_offset = len(lines[num_of_buffer_lines_to_remove - 1])
+            end_iter = buff.get_iter_at_line_offset(num_of_buffer_lines_to_remove, char_offset=char_offset)
+        buff.delete(start_iter, end_iter)
+        GObject.idle_add(self.view_posts_text_view.queue_draw)
     
     #populate self.posts with post textviews and add them to view_posts_swindow
     def populate_view_posts_text_view(self, old_range_to_load=None, top=True):
         #remove data from the view posts textview
         buff = self.view_posts_text_view.get_buffer()
-        buff.set_text("")
         tag = buff.create_tag(weight=Pango.Weight.BOLD)
         #add data to the view_posts textview
         data = self.get_posts_data()
         mark_pairs = [] #stores the text marks representing the start and end of locations to be made bold
         if not old_range_to_load: #if this isn't called by self.handle_scroll_event
+            buff.set_text("")
             mark_pairs += self.add_posts_to_buffer(buff, data, self.range_to_load)
-            GObject.idle_add(self.set_vptv_to_bottom)
+            self.set_vptv_to_bottom()
         else: #called by self.handle_scroll_event
-            self.add_posts_to_buffer(buff, data, old_range_to_load)
-            height = self.get_vptv_height()
+            #get the mark of the top-left buffer coord, update the buffer and then scroll to that mark
+            #add the posts to the top if the top edge reached, and add them to the bottom if the bottom edge reached
+            #don't delete the buffer or the mark that indicates where to scroll will lose its meaning
+            #the scrolling isn't instantaneous, which sucks, but I'm happy to have got it working for now
             if top: #load older posts (top edge reached)
-                #if top edge reached
-                #   get height of textview (done above)
-                #   remove all posts from buffer
-                #   add the previous posts + the posts that you want to add to the buffer
-                #   get new height of textview
-                #   remove all posts from buffer
-                #   add the posts from the range to load i.e. posts that you want to add + previous posts - posts that you want to remove
-                #   you can use the two heights to then set the scrollbar of the window to the right position
-                buff.set_text("")
-                #(for the next line) discard returned mark pairs as the contents added to the buffer are temporary
-                self.add_posts_to_buffer(buff, data, [old_range_to_load[0], self.range_to_load[1]])
-                new_height = self.get_vptv_height()
-                buff.set_text("")
-                mark_pairs += self.add_posts_to_buffer(buff, data, self.range_to_load)
-                new_new_height = self.get_vptv_height()
-                #when the top edge is reached, y=0, so the new y is simply new_height - height
-                y = (new_height - height) + 1
-                self.view_posts_swindow.get_vadjustment().set_value(y)
+                iter_ = buff.get_start_iter()
+                mark = buff.create_mark(None, iter_, left_gravity=False)
+                #insert the new section to load at the start of the buffer, then scroll to mark
+                mark_pairs += self.add_posts_to_buffer(buff, data, [old_range_to_load[1], self.range_to_load[1]], top=top)
+                self.remove_posts_from_buffer(buff, data, old_range_to_load, top)
             else: #load newer posts (bottom edge reached)
-                buff.set_text("")
-                self.add_posts_to_buffer(buff, data, [self.range_to_load[0], old_range_to_load[1]])
-                new_height = self.get_vptv_height()
-                buff.set_text("")
-                mark_pairs += self.add_posts_to_buffer(buff, data, self.range_to_load)
-                new_new_height = self.get_vptv_height()
-                y =  new_new_height - (new_height - height) - 1 - self.view_posts_swindow.get_vadjustment().get_page_size()
-                self.view_posts_swindow.get_vadjustment().set_value(y)
+                self.set_vptv_to_bottom()
+                buffer_x, buffer_y = self.view_posts_text_view.get_visible_rect().x, self.view_posts_text_view.get_visible_rect().y
+                iter_ = self.view_posts_text_view.get_iter_at_location(buffer_x, buffer_y)
+                mark = buff.create_mark(None, iter_, left_gravity=True)
+                #insert the new section to load at the end of the buffer, then scroll to mark
+                mark_pairs += self.add_posts_to_buffer(buff, data, [self.range_to_load[0], old_range_to_load[0]], top=top)
+                self.remove_posts_from_buffer(buff, data, old_range_to_load, top)
+            GObject.idle_add(self.view_posts_text_view.scroll_to_mark, mark, 0, True, 0, 0)
 
         for mark_pair in mark_pairs:
             buff.apply_tag(tag, buff.get_iter_at_mark(mark_pair[0]), buff.get_iter_at_mark(mark_pair[1]))
@@ -204,15 +224,14 @@ class Window(Gtk.Window):
             postsfile.truncate()
             postsfile.write(json.dumps(posts, sort_keys=True, indent=2))
         buff.set_text("")
-        self.vptv_refreshed = True
+        #hacky way to get the vptv to update so get_vptv_height() works
+        self.view_posts_button_clicked(None)
+        self.new_post_button_clicked(None)
     
     def view_posts_button_clicked(self, button):
         self.master.remove(self.new_post_layout)
         self.master.add(self.view_posts_layout)
-        self.populate_view_posts_text_view()
-        if self.first_time or self.vptv_refreshed:
-            GObject.idle_add(self.set_vptv_to_bottom)
-            self.first_time, self.vptv_refreshed = [False]*2
+        GObject.idle_add(self.populate_view_posts_text_view)
         self.show_all()
 
     def new_post_button_clicked(self, button):
@@ -223,17 +242,12 @@ class Window(Gtk.Window):
 
     def text_view_changed(self, widget, event, data=None):
         adj = self.text_view_swindow.get_vadjustment()
-        adj.set_value(adj.get_upper() - adj.get_page_size())
+        adj.set_value(math.inf)
     
     def set_vptv_to_bottom(self):
         buff = self.view_posts_text_view.get_buffer()
         adj = self.view_posts_swindow.get_vadjustment()
-        adj.set_value(self.get_vptv_height() - adj.get_page_size())
-    
-    def get_vptv_height(self):
-        buff = self.view_posts_text_view.get_buffer()
-        return self.view_posts_text_view.get_iter_location(buff.get_start_iter()).height*(
-            len(buff.get_text(buff.get_start_iter(), buff.get_end_iter(), False).split("\n")))
+        adj.set_value(math.inf)
         
     def handle_key_pressed(self, widget, event):
         if Gdk.keyval_name(event.keyval) == "Escape" and self.has_toplevel_focus():
@@ -253,6 +267,7 @@ class Window(Gtk.Window):
             GObject.idle_add(self.update_search_tag_text)
         elif self.get_focus() == self.search_content_entry:
             GObject.idle_add(self.update_search_content_text)
+        GObject.idle_add(self.view_posts_text_view.queue_draw)
     
     def update_search_content_text(self):
         self.search_content_text = self.search_content_entry.get_buffer().get_text()
@@ -405,4 +420,6 @@ class SelectDateRangeWindow(Gtk.Window):
 if __name__ == "__main__":
     win = Window()
     GObject.idle_add(win.check_for_postsfile)
+    if isfile(dirname(realpath(__file__)) + "/.postsfile"):
+        GObject.idle_add(win.populate_view_posts_text_view)
     Gtk.main()
