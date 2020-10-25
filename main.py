@@ -118,9 +118,12 @@ class Window(Gtk.Window):
                             datetime.date(year=self.date_range[1][2], month=self.date_range[1][1], day=self.date_range[1][0]) == (
                             datetime.date(year=x["year"], month=x["month"], day=x["day"])))]
             if self.search_content_text != "":
-                posts = [x for x in posts if x["text"].find(self.search_content_text) != -1]
+                posts = [x for x in posts if x["text"].lower().find(self.search_content_text.lower()) != -1]
             if self.search_tag_text != "":
-                posts = [x for x in posts if x["tag"].find(self.search_tag_text) != -1]
+                if self.search_tag_text.lower() == "none":
+                    posts = [x for x in posts if x["tag"] == ""]
+                else:
+                    posts = [x for x in posts if x["tag"].lower().find(self.search_tag_text.lower()) != -1]
             return posts[::-1]
 
     def get_meta_line(self, data, i):
@@ -217,6 +220,8 @@ class Window(Gtk.Window):
         now = datetime.datetime.now()
         new_post = {"text":post_text, "hour":now.time().hour, "minute":now.time().minute, "second":now.time().second,
                     "year":now.date().year, "month":now.date().month, "day":now.date().day, "tag":self.tag_entry.get_text()}
+        if new_post["tag"].lower() == "none":
+            new_post["tag"] = ""
         posts = [new_post] + posts
         posts = posts[::-1]
         with open(dirname(realpath(__file__)) + "/.postsfile", "wt") as postsfile:
