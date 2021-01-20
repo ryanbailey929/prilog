@@ -3,7 +3,7 @@
 from os.path import isfile, dirname, realpath
 import gi, json, datetime, math
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, Gdk, GObject, Pango
+from gi.repository import Gtk, Gdk, Pango, GLib
 
 class Window(Gtk.Window):
     def __init__(self):
@@ -30,9 +30,9 @@ class Window(Gtk.Window):
         self.search_tag_entry = Gtk.Entry()
         self.search_content_entry = Gtk.Entry()
         self.search_date_button = Gtk.Button(label="Select Date/Range")
-        self.search_tag_label = Gtk.Label("Search for Tag:")
-        self.search_content_label = Gtk.Label("Search Content:")
-        self.search_date_label = Gtk.Label("No date or date range selected.")
+        self.search_tag_label = Gtk.Label(label="Search for Tag:")
+        self.search_content_label = Gtk.Label(label="Search Content:")
+        self.search_date_label = Gtk.Label(label="No date or date range selected.")
 
         self.view_posts_button = Gtk.Button(label="View Posts")
         self.new_post_button = Gtk.Button(label="New Post")
@@ -43,7 +43,7 @@ class Window(Gtk.Window):
         self.text_view_swindow.set_policy(hscrollbar_policy=Gtk.PolicyType.NEVER, vscrollbar_policy=Gtk.PolicyType.AUTOMATIC)
         self.text_view_swindow.add(self.text_view)
 
-        self.set_tag_label = Gtk.Label("Set Tag:")
+        self.set_tag_label = Gtk.Label(label="Set Tag:")
         self.tag_entry = Gtk.Entry()
 
         self.view_posts_button.connect("clicked", self.view_posts_button_clicked)
@@ -97,7 +97,7 @@ class Window(Gtk.Window):
             if response == Gtk.ResponseType.YES:
                 with open(dirname(realpath(__file__)) + "/.postsfile", "w+") as postsfile:
                     postsfile.write(json.dumps([]))
-                GObject.idle_add(self.populate_view_posts_text_view)
+                GLib.idle_add(self.populate_view_posts_text_view)
             else:
                 Gtk.main_quit()
 
@@ -173,7 +173,7 @@ class Window(Gtk.Window):
             char_offset = len(lines[num_of_buffer_lines_to_remove - 1])
             end_iter = buff.get_iter_at_line_offset(num_of_buffer_lines_to_remove, char_offset=char_offset)
         buff.delete(start_iter, end_iter)
-        GObject.idle_add(self.view_posts_text_view.queue_draw)
+        GLib.idle_add(self.view_posts_text_view.queue_draw)
     
     #populate self.posts with post textviews and add them to view_posts_swindow
     def populate_view_posts_text_view(self, old_range_to_load=None, top=True):
@@ -206,7 +206,7 @@ class Window(Gtk.Window):
                 #insert the new section to load at the end of the buffer, then scroll to mark
                 mark_pairs += self.add_posts_to_buffer(buff, data, [self.range_to_load[0], old_range_to_load[0]], top=top)
                 self.remove_posts_from_buffer(buff, data, old_range_to_load, top)
-            GObject.idle_add(self.view_posts_text_view.scroll_to_mark, mark, 0, True, 0, 0)
+            GLib.idle_add(self.view_posts_text_view.scroll_to_mark, mark, 0, True, 0, 0)
 
         for mark_pair in mark_pairs:
             buff.apply_tag(tag, buff.get_iter_at_mark(mark_pair[0]), buff.get_iter_at_mark(mark_pair[1]))
@@ -236,7 +236,7 @@ class Window(Gtk.Window):
     def view_posts_button_clicked(self, button):
         self.master.remove(self.new_post_layout)
         self.master.add(self.view_posts_layout)
-        GObject.idle_add(self.populate_view_posts_text_view)
+        GLib.idle_add(self.populate_view_posts_text_view)
         self.show_all()
 
     def new_post_button_clicked(self, button):
@@ -269,10 +269,10 @@ class Window(Gtk.Window):
             self.set_focus(self.text_view)
             return True
         elif self.get_focus() == self.search_tag_entry:
-            GObject.idle_add(self.update_search_tag_text)
+            GLib.idle_add(self.update_search_tag_text)
         elif self.get_focus() == self.search_content_entry:
-            GObject.idle_add(self.update_search_content_text)
-        GObject.idle_add(self.view_posts_text_view.queue_draw)
+            Glib.idle_add(self.update_search_content_text)
+        GLib.idle_add(self.view_posts_text_view.queue_draw)
     
     def update_search_content_text(self):
         self.search_content_text = self.search_content_entry.get_buffer().get_text()
@@ -353,8 +353,8 @@ class SelectDateRangeWindow(Gtk.Window):
         self.set_resizable(False)
         self.date_selector_1 = Gtk.Calendar()
         self.date_selector_2 = Gtk.Calendar()
-        self.date_selected_label_1 = Gtk.Label("No Date Selected")
-        self.date_selected_label_2 = Gtk.Label("No Date Selected")
+        self.date_selected_label_1 = Gtk.Label(label="No Date Selected")
+        self.date_selected_label_2 = Gtk.Label(label="No Date Selected")
         self.deselect_button_1 = Gtk.Button(label="Deselect")
         self.deselect_button_2 = Gtk.Button(label="Deselect")
         self.cancel_button = Gtk.Button(label="Cancel")
@@ -424,7 +424,7 @@ class SelectDateRangeWindow(Gtk.Window):
 
 if __name__ == "__main__":
     win = Window()
-    GObject.idle_add(win.check_for_postsfile)
+    GLib.idle_add(win.check_for_postsfile)
     if isfile(dirname(realpath(__file__)) + "/.postsfile"):
-        GObject.idle_add(win.populate_view_posts_text_view)
+        GLib.idle_add(win.populate_view_posts_text_view)
     Gtk.main()
