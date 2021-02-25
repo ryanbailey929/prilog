@@ -201,7 +201,7 @@ class Window(Gtk.Window):
             else: #load newer posts (bottom edge reached)
                 self.set_vptv_to_bottom()
                 buffer_x, buffer_y = self.view_posts_text_view.get_visible_rect().x, self.view_posts_text_view.get_visible_rect().y
-                iter_ = self.view_posts_text_view.get_iter_at_location(buffer_x, buffer_y)
+                iter_ = self.view_posts_text_view.get_iter_at_location(buffer_x, buffer_y)[1]
                 mark = buff.create_mark(None, iter_, left_gravity=True)
                 #insert the new section to load at the end of the buffer, then scroll to mark
                 mark_pairs += self.add_posts_to_buffer(buff, data, [self.range_to_load[0], old_range_to_load[0]], top=top)
